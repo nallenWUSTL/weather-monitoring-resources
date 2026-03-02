@@ -329,44 +329,59 @@
         }
     }
 
-        async function decodeAlertDetail(alertProps) {
+    async function decodeAlertDetail(alertProps) {
         const detailPanel = document.getElementById('alert-detail-panel');
         const detailBody = document.getElementById('detail-body');
         detailPanel.classList.remove('hidden');
         document.getElementById('forecast-section').classList.add('hidden');
         document.getElementById('detail-title').innerText = alertProps.event;
         
-        /**
-         * Enhanced Formatting Logic
-         * Prioritizes exact NWS Headline time strings to ensure consistency.
-         * Falls back to high-fidelity formatting matching the headline style.
-         */
         const getNWSTime = (isoStr, type) => {
-            if (!isoStr) return "N/A";
-            
-            // 1. Try to extract exact time from NWS Headline text if it exists
             const headline = alertProps.headline || "";
-            const searchKey = type === 'sent' ? 'issued' : 'until';
+            const description = alertProps.description || "";
+            const isStatement = alertProps.event.toLowerCase().includes('statement');
             
-            // Regex to find "issued [Month] [Day] at [Time] [TZ]"
-            const regex = new RegExp(`${searchKey}\\s+([A-Za-z]+\\s+\\d+\\s+at\\s+\\d+:\\d+\\s*[AP]M\\s+[A-Z]{3})`, 'i');
-            const match = headline.match(regex);
-            
-            if (match && match[1]) {
-                return match[1].trim();
+            // 1. FIX FALSE EXPIRATION DATES FOR STATEMENTS
+            // For Special Weather Statements, the metadata 'expires' is often just a wire purge time.
+            // We only show an expiration if explicitly stated in the text.
+            if (type === 'ends' && isStatement) {
+                const textMatch = (headline + " " + description).match(/until\s+([A-Za-z]*\s*\d*\s*a?t?\s*\d+:?\d*\s*[AP]M\s+[A-Z]{3,4})/i);
+                if (textMatch && textMatch[1]) return textMatch[1].trim().replace(/([AP]M)([A-Z])/, '$1 $2');
+                return "-"; 
             }
 
-            // 2. Fallback: Generate the string manually to match specified NWS format
-            const d = new Date(isoStr);
-            const month = d.toLocaleString('en-US', { month: 'long' });
-            const day = d.getDate();
-            let hours = d.getHours();
-            const ampm = hours >= 12 ? ' PM' : ' AM';
-            hours = hours % 12 || 12;
-            const minutes = d.getMinutes().toString().padStart(2, '0');
-            const tz = d.toLocaleTimeString('en-US', { timeZoneName: 'short' }).split(' ').pop();
+            if (!isoStr || isoStr === 'null' || isoStr === 'undefined') return "-";
+
+            // 2. FIX CST OVERRIDE / TIMEZONE CONVERSION
+            // NWS ISO strings include local time + offset (e.g., 2026-03-02T16:00:00-05:00).
+            // We parse the exact string digits to keep the NWS intended local time, preventing browser conversion.
+            try {
+                const parts = isoStr.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+                if (parts) {
+                    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+                    const month = monthNames[parseInt(parts[2], 10) - 1];
+                    const day = parseInt(parts[3], 10);
+                    
+                    let hours = parseInt(parts[4], 10);
+                    const ampm = hours >= 12 ? 'PM' : 'AM';
+                    hours = hours % 12 || 12;
+                    const minutes = parts[5];
+                    
+                    // Scan text for the actual issuing office's 3-letter timezone
+                    const tzMatch = (headline + " " + description).match(/\b(EST|EDT|CST|CDT|MST|MDT|PST|PDT|AST|ADT|HST|AKST|AKDT)\b/i);
+                    const tz = tzMatch ? tzMatch[1].toUpperCase() : "";
+                    
+                    return `${month} ${day} at ${hours}:${minutes} ${ampm} ${tz}`.trim();
+                }
+            } catch (e) { }
             
-            return `${month} ${day} at ${hours}:${minutes}${ampm} ${tz}`;
+            // Ultimate fallback
+            try {
+                const d = new Date(isoStr);
+                return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
+            } catch(e) {
+                return "-";
+            }
         };
 
         const issuedTime = getNWSTime(alertProps.sent, 'sent');
