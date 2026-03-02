@@ -329,44 +329,63 @@
         }
     }
 
-    async function decodeAlertDetail(alertProps) {
+        async function decodeAlertDetail(alertProps) {
         const detailPanel = document.getElementById('alert-detail-panel');
         const detailBody = document.getElementById('detail-body');
-        const forecastSection = document.getElementById('forecast-section');
-        
         detailPanel.classList.remove('hidden');
-        forecastSection.classList.add('hidden');
-        
+        document.getElementById('forecast-section').classList.add('hidden');
         document.getElementById('detail-title').innerText = alertProps.event;
-
-        // Format Issued and Expiration times
-        const formatTime = (isoStr) => {
+        
+        /**
+         * Enhanced Formatting Logic
+         * Prioritizes exact NWS Headline time strings to ensure consistency.
+         * Falls back to high-fidelity formatting matching the headline style.
+         */
+        const getNWSTime = (isoStr, type) => {
             if (!isoStr) return "N/A";
+            
+            // 1. Try to extract exact time from NWS Headline text if it exists
+            const headline = alertProps.headline || "";
+            const searchKey = type === 'sent' ? 'issued' : 'until';
+            
+            // Regex to find "issued [Month] [Day] at [Time] [TZ]"
+            const regex = new RegExp(`${searchKey}\\s+([A-Za-z]+\\s+\\d+\\s+at\\s+\\d+:\\d+\\s*[AP]M\\s+[A-Z]{3})`, 'i');
+            const match = headline.match(regex);
+            
+            if (match && match[1]) {
+                return match[1].trim();
+            }
+
+            // 2. Fallback: Generate the string manually to match specified NWS format
             const d = new Date(isoStr);
-            return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' });
+            const month = d.toLocaleString('en-US', { month: 'long' });
+            const day = d.getDate();
+            let hours = d.getHours();
+            const ampm = hours >= 12 ? ' PM' : ' AM';
+            hours = hours % 12 || 12;
+            const minutes = d.getMinutes().toString().padStart(2, '0');
+            const tz = d.toLocaleTimeString('en-US', { timeZoneName: 'short' }).split(' ').pop();
+            
+            return `${month} ${day} at ${hours}:${minutes}${ampm} ${tz}`;
         };
 
-        const issuedTime = formatTime(alertProps.sent);
-        const endsTime = formatTime(alertProps.ends || alertProps.expires);
-        
-        const description = alertProps.description || "No detailed description available.";
+        const issuedTime = getNWSTime(alertProps.sent, 'sent');
+        const endsTime = getNWSTime(alertProps.ends || alertProps.expires, 'ends');
         const instruction = alertProps.instruction ? `<div class="mt-4 p-3 bg-blue-900/20 border border-blue-500/30 rounded-xl"><b>Instructions:</b><br>${alertProps.instruction}</div>` : "";
         
         detailBody.innerHTML = `
-            <!-- Time Window Bar -->
-            <div class="flex gap-2 mb-4">
-                <div class="flex-1 bg-slate-900 border border-slate-800 p-2 rounded-lg text-center">
-                    <div class="text-[8px] text-slate-500 uppercase font-black tracking-widest">Issued</div>
-                    <div class="text-[10px] text-blue-400 font-mono font-bold">${issuedTime}</div>
+            <div class="flex flex-col gap-2 mb-4">
+                <div class="bg-slate-900 border border-slate-800 p-2.5 rounded-xl">
+                    <div class="text-[8px] text-slate-500 uppercase font-black tracking-widest mb-1">Issued</div>
+                    <div class="text-[10px] text-blue-400 font-bold leading-tight">${issuedTime}</div>
                 </div>
-                <div class="flex-1 bg-slate-900 border border-slate-800 p-2 rounded-lg text-center">
-                    <div class="text-[8px] text-slate-500 uppercase font-black tracking-widest">Expires</div>
-                    <div class="text-[10px] text-red-400 font-mono font-bold">${endsTime}</div>
+                <div class="bg-slate-900 border border-slate-800 p-2.5 rounded-xl">
+                    <div class="text-[8px] text-slate-500 uppercase font-black tracking-widest mb-1">Expires</div>
+                    <div class="text-[10px] text-red-400 font-bold leading-tight">${endsTime}</div>
                 </div>
             </div>
-
             <div class="font-bold text-white mb-2">${alertProps.headline || ""}</div>
-            <div class="whitespace-pre-wrap">${description}</div>
+            <div class="whitespace-pre-wrap">${alertProps.description || "No details available."}</div>
             ${instruction}
         `;
     }
