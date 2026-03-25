@@ -152,11 +152,11 @@
                 <div class="grid grid-cols-1 gap-4 text-[10px]">
                     <div class="bg-slate-950 p-6 rounded-2xl border border-slate-800 text-center hover:border-blue-500/50 transition-colors">
                         <div class="text-4xl font-black text-white leading-none" id="stat-visible">0</div>
-                        <div class="text-[10px] text-slate-500 uppercase font-black tracking-widest mt-2">Warnings, Watches, and Advisories</div>
+                        <div class="text-[10px] text-slate-500 uppercase font-black tracking-widest mt-2">Warnings, Watches, and Advisories (MO & IL)</div>
                     </div>
                     <div class="bg-red-950/20 p-6 rounded-2xl border border-red-900/30 text-center hover:bg-red-950/30 transition-colors">
                         <div class="text-4xl font-black text-red-500 leading-none" id="stat-high">0</div>
-                        <div class="text-[10px] text-red-700 uppercase font-black tracking-widest mt-2">Critical Warnings and Watches</div>
+                        <div class="text-[10px] text-red-700 uppercase font-black tracking-widest mt-2">Critical Warnings and Watches (MO & IL)</div>
                     </div>
                 </div>
             </div>
@@ -254,6 +254,41 @@
 
     function isPolygonBased(feature) {
         return feature.geometry && (feature.geometry.type === 'Polygon' || feature.geometry.type === 'MultiPolygon');
+    }
+
+    // Helper function to check if an alert applies to Missouri (MO) or Illinois (IL)
+    function isMoIlAlert(alert) {
+        const props = alert.properties;
+        if (!props) return false;
+        
+        // Check SAME codes (MO FIPS = 29, IL FIPS = 17)
+        if (props.geocode && props.geocode.SAME) {
+            return props.geocode.SAME.some(code => {
+                const strCode = String(code).padStart(6, '0');
+                const stateFips = strCode.substring(1, 3);
+                return stateFips === '29' || stateFips === '17';
+            });
+        }
+        
+        // Check UGC codes
+        if (props.geocode && props.geocode.UGC) {
+            return props.geocode.UGC.some(code => {
+                const strCode = String(code).toUpperCase();
+                return strCode.startsWith('MO') || strCode.startsWith('IL');
+            });
+        }
+        
+        // Fallback to area description parsing
+        if (props.areaDesc) {
+            return props.areaDesc.includes(', MO') || 
+                   props.areaDesc.includes(' MO;') || 
+                   props.areaDesc.endsWith(' MO') ||
+                   props.areaDesc.includes(', IL') || 
+                   props.areaDesc.includes(' IL;') || 
+                   props.areaDesc.endsWith(' IL');
+        }
+        
+        return false;
     }
 
     function dismissEmergency() {
@@ -594,8 +629,12 @@
 
         alertsLayer.clearLayers().addData({ type: "FeatureCollection", features: processed });
         
-        document.getElementById('stat-visible').innerText = processed.length;
-        document.getElementById('stat-high').innerText = rawAlertData.filter(a => PULSE_EVENTS.includes(a.properties.event)).length;
+        // Count only alerts that fall within MO or IL
+        const moIlProcessed = processed.filter(a => isMoIlAlert(a));
+        const moIlHigh = rawAlertData.filter(a => PULSE_EVENTS.includes(a.properties.event) && isMoIlAlert(a));
+
+        document.getElementById('stat-visible').innerText = moIlProcessed.length;
+        document.getElementById('stat-high').innerText = moIlHigh.length;
     }
 
     function renderFilterList() {
