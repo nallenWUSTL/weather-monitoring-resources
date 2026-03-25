@@ -238,6 +238,13 @@
         "Default": "#334155"
     };
 
+    const EVENT_PRIORITY = {
+        "Tornado Warning": 1,
+        "Severe Thunderstorm Warning": 2,
+        "Tornado Watch": 3,
+        "Flood Warning": 4
+    };
+
     let map, alertsLayer, radarLayer, assetBuffer, countyBoundaries = null;
     let rawAlertData = [];
     let activeFilters = new Set();
@@ -574,6 +581,14 @@
                 });
             }
         });
+
+        // Sort for map drawing order (lowest priority first, highest priority last so it's drawn on top)
+        processed.sort((a, b) => {
+            const pA = EVENT_PRIORITY[a.properties.event] || 5;
+            const pB = EVENT_PRIORITY[b.properties.event] || 5;
+            return pB - pA;
+        });
+
         alertsLayer.clearLayers().addData({ type: "FeatureCollection", features: processed });
         
         document.getElementById('stat-visible').innerText = processed.length;
@@ -585,7 +600,14 @@
         container.innerHTML = '';
         const counts = {};
         rawAlertData.forEach(f => { counts[f.properties.event] = (counts[f.properties.event] || 0) + 1; });
-        Object.entries(counts).sort((a, b) => b[1] - a[1]).forEach(([event, count]) => {
+        
+        Object.entries(counts).sort((a, b) => {
+            // Sort top-to-bottom by Priority, then Alphabetically
+            const pA = EVENT_PRIORITY[a[0]] || 5;
+            const pB = EVENT_PRIORITY[b[0]] || 5;
+            if (pA !== pB) return pA - pB;
+            return a[0].localeCompare(b[0]);
+        }).forEach(([event, count]) => {
             const isActive = activeFilters.has(event);
             const div = document.createElement('div');
             div.className = `flex items-center justify-between p-2 rounded-xl border cursor-pointer transition-all ${isActive ? 'bg-blue-600/20 border-blue-500/50' : 'bg-slate-950/40 border-slate-800 hover:border-slate-600'}`;
