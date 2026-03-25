@@ -281,8 +281,12 @@
         
         alerts.forEach(a => {
             const p = a.properties;
+            
+            // Filter ticker items based on active pane selections
+            if (activeFilters.size > 0 && !activeFilters.has(p.event)) return;
+
             if (PULSE_EVENTS.includes(p.event)) {
-                // 1. Sort the area descriptions alphabetically to catch identically-zoned warnings 
+                // Sort the area descriptions alphabetically to catch identically-zoned warnings 
                 // that happen to list counties in a different order.
                 const sortedAreas = (p.areaDesc || "").split(';').map(s => s.trim()).sort().join('|');
                 const tickerKey = `${p.event}|${sortedAreas}`;
@@ -319,7 +323,6 @@
             </span>`;
         }).join('<span class="text-red-500/50 mx-2">|</span>');
 
-        // 2. Output exactly ONCE. Removing the "+ tickerItems" duplication fixes the double rendering issue.
         track.innerHTML = tickerItems; 
         track.style.animationDuration = `${Math.max(25, uniqueAlerts.length * 10)}s`;
     }
@@ -543,7 +546,7 @@
 
         document.getElementById('refresh-btn').onclick = fetchData;
         document.getElementById('close-detail').onclick = () => document.getElementById('alert-detail-panel').classList.add('hidden');
-        document.getElementById('clear-filters').onclick = () => { activeFilters.clear(); applyFilters(); renderFilterList(); };
+        document.getElementById('clear-filters').onclick = () => { activeFilters.clear(); applyFilters(); renderFilterList(); updateTicker(rawAlertData); };
     }
 
     async function fetchData() {
@@ -612,7 +615,7 @@
             const div = document.createElement('div');
             div.className = `flex items-center justify-between p-2 rounded-xl border cursor-pointer transition-all ${isActive ? 'bg-blue-600/20 border-blue-500/50' : 'bg-slate-950/40 border-slate-800 hover:border-slate-600'}`;
             div.innerHTML = `<span class="truncate pr-2">${event}</span><span class="font-black text-blue-400">${count}</span>`;
-            div.onclick = () => { isActive ? activeFilters.delete(event) : activeFilters.add(event); applyFilters(); renderFilterList(); };
+            div.onclick = () => { isActive ? activeFilters.delete(event) : activeFilters.add(event); applyFilters(); renderFilterList(); updateTicker(rawAlertData); };
             container.appendChild(div);
         });
     }
