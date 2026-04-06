@@ -1,0 +1,1065 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weather Operations Briefing</title>
+    <!-- Removed Google Fonts for Urbanist to ensure Adobe Acrobat native font compatibility -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Added DataLabels Plugin for Static PDF/PPT Export Readability -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+
+    <style>
+        /* 1. THE SETUP */
+        * { box-sizing: border-box; }
+
+        body {
+            background-color: #020617; /* slate-950 */
+            display: grid;
+            gap: 60px; /* Increased external gutter between slides */
+            grid-template-columns: 1fr;
+            margin: 0;
+            min-height: 100vh;
+            padding: 60px 40px; /* External gutter preventing screen touch */
+            place-items: center;
+        }
+
+        .slide-container {
+            align-items: flex-start;
+            background-color: #0f172a; /* slate-900 */
+            border-radius: 24px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            /* Switched to a geometric, Adobe Acrobat-safe font stack */
+            font-family: 'Century Gothic', 'Avenir', 'Segoe UI', 'Trebuchet MS', Arial, Helvetica, sans-serif;
+            height: 720px;
+            justify-content: flex-start;
+            overflow: hidden;
+            padding: 64px 80px; /* INCREASED INTERNAL GUTTER (Safe Area) */
+            position: relative;
+            width: 1280px;
+            border: 1px solid #1e293b; /* slate-800 */
+        }
+
+        .slide-container::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: radial-gradient(circle at top right, rgba(59, 130, 246, 0.1) 0%, transparent 40%),
+                        radial-gradient(circle at bottom left, rgba(239, 68, 68, 0.05) 0%, transparent 40%);
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .slide-container > * { position: relative; z-index: 1; }
+
+        /* 2. CONSISTENT TYPOGRAPHY */
+        .slide-container h1, .slide-container h2, .slide-container h3, .slide-container h4 {
+            color: #f8fafc; /* slate-50 */
+            font-weight: 700;
+            margin: 0;
+            letter-spacing: -0.02em;
+        }
+
+        .slide-container h1 { font-size: 72px; line-height: 1.1; font-weight: 900; text-transform: uppercase; }
+        .slide-container h1 span.blue { color: #3b82f6; }
+        .slide-container h1 span.red { color: #ef4444; }
+
+        .slide-container .slide-title {
+            font-size: 44px; /* Slightly scaled to match new grid */
+            font-weight: 900;
+            margin-bottom: 32px;
+            text-align: left;
+            width: 100%;
+            color: #f8fafc;
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+            border-bottom: 2px solid #1e293b;
+            padding-bottom: 15px;
+        }
+
+        .slide-container .subtitle {
+            font-size: 24px;
+            color: #3b82f6;
+            margin: 20px auto;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            font-weight: 700;
+        }
+
+        .slide-container .content-area {
+            align-items: flex-start;
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+            width: 100%;
+            height: 100%;
+            max-height: 100%;
+            position: relative;
+        }
+
+        /* 3. LAYOUT DEFINITIONS */
+        .title-layout { text-align: center; align-self: center; margin-top: auto; margin-bottom: auto; width: 100%;}
+        
+        .title-layout .date-badge {
+            display: inline-block;
+            background: rgba(59, 130, 246, 0.2);
+            border: 1px solid rgba(59, 130, 246, 0.5);
+            color: #60a5fa;
+            padding: 8px 24px;
+            border-radius: 999px;
+            font-size: 16px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 30px;
+        }
+
+        /* FORECAST GRID LAYOUT */
+        .forecast-grid { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr; 
+            gap: 32px; /* Compressed to fit safe area */
+            width: 100%; 
+            height: 100%; 
+        }
+        
+        .forecast-card { 
+            background: #1e293b; 
+            border-radius: 20px; 
+            border: 1px solid #334155; 
+            padding: 32px; /* Reduced internal padding to save space */
+            display: flex; 
+            flex-direction: column; 
+            box-shadow: inset 0 2px 10px rgba(255,255,255,0.02);
+        }
+        
+        .forecast-card .period-title { 
+            font-size: 28px; 
+            font-weight: 900; 
+            color: #3b82f6; 
+            margin-bottom: 20px; 
+            text-transform: uppercase; 
+        }
+
+        .forecast-metrics { 
+            display: grid; 
+            grid-template-columns: repeat(3, 1fr); 
+            gap: 12px; 
+            margin-bottom: 24px; 
+        }
+
+        .metric { 
+            background: #0f172a; 
+            padding: 12px; 
+            border-radius: 12px; 
+            border: 1px solid #0f172a; 
+            text-align: center; 
+        }
+
+        .metric-value { font-size: 28px; font-weight: 900; color: #f8fafc; line-height: 1; }
+        .metric-value.red { color: #f87171; }
+        .metric-value.blue { color: #60a5fa; }
+        
+        .metric-label { 
+            font-size: 11px; 
+            font-weight: 900; 
+            color: #64748b; 
+            text-transform: uppercase; 
+            margin-top: 8px; 
+            letter-spacing: 0.05em;
+        }
+
+        .forecast-short { 
+            font-size: 22px; 
+            font-weight: 900; 
+            color: #f1f5f9; 
+            margin-bottom: 12px;
+            line-height: 1.3;
+        }
+
+        .forecast-desc { 
+            color: #94a3b8; 
+            font-size: 16px; 
+            line-height: 1.5; 
+            font-weight: 500;
+        }
+
+        /* HOUR-BY-HOUR TABLE & BADGES */
+        .hour-table { width: 100%; border-collapse: separate; border-spacing: 0 6px; }
+        .hour-table th { color: #64748b; font-size: 14px; text-transform: uppercase; letter-spacing: 0.1em; text-align: center; padding: 0 12px 10px 12px; border-bottom: 2px solid #334155; }
+        .hour-table th:first-child { text-align: left; }
+        .hour-table td { background: #1e293b; padding: 12px 16px; text-align: center; }
+        .hour-table tr td:first-child { border-radius: 12px 0 0 12px; border-left: 4px solid #334155; text-align: left; font-weight: 900; color: #f8fafc; font-size: 18px;}
+        .hour-table tr td:last-child { border-radius: 0 12px 12px 0; }
+        
+        .badge { display: inline-block; padding: 6px 12px; border-radius: 8px; font-weight: 900; font-size: 16px; color: #f8fafc; min-width: 60px; }
+        .badge-normal { background: #0f172a; color: #94a3b8; border: 1px solid #334155; }
+        .badge-warm { background: #ef4444; color: #fff; } /* Temp > 75F */
+        .badge-cool { background: #3b82f6; color: #fff; } /* Temp < 32F */
+        .badge-precip-high { background: #0ea5e9; color: #fff; } /* Precip > 50% */
+        .badge-precip-ext { background: #2563eb; color: #fff; } /* Precip > 80% */
+        .badge-rh-high { background: #8b5cf6; color: #fff; } /* Humidity > 80% */
+        .badge-wind-high { background: #f59e0b; color: #fff; } /* Winds/Gusts > 15mph */
+        .badge-wind-ext { background: #ef4444; color: #fff; } /* Gusts > 30mph */
+
+        .outlier-legend {
+            margin-top: auto; 
+            font-size: 12px; 
+            color: #64748b; 
+            font-weight: 700; 
+            text-transform: uppercase; 
+            letter-spacing: 0.05em; 
+            background: #0f172a; 
+            padding: 12px 20px; 
+            border-radius: 12px; 
+            border: 1px solid #1e293b; 
+            width: 100%; 
+            display: flex; 
+            justify-content: space-between;
+        }
+
+        /* Bullet Points (Exec Summary) - Judiciously sized to prevent overflow */
+        .bullet-list { width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center;}
+        .bullet-list ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px;}
+        .bullet-list li {
+            background: #1e293b;
+            padding: 16px 24px 16px 72px;
+            border-radius: 16px;
+            position: relative;
+            color: #cbd5e1;
+            border: 1px solid #334155;
+            font-size: 16px;
+            line-height: 1.5;
+        }
+        .bullet-list i {
+            color: #3b82f6;
+            font-size: 20px;
+            left: 24px;
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        .bullet-list li strong { color: #f8fafc; font-weight: 900; font-size: 18px; display: block; margin-bottom: 2px;}
+
+        /* --- CHART STYLING --- */
+        .chart-controls { display: flex; gap: 12px; margin-bottom: 24px; width: 100%; justify-content: center; }
+        .chart-btn { background: #0f172a; color: #64748b; border: 1px solid #334155; padding: 10px 24px; border-radius: 999px; cursor: pointer; font-weight: 900; font-family: inherit; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; transition: all 0.2s; }
+        .chart-btn:hover { background: #1e293b; color: #cbd5e1; }
+        .chart-btn.active { background: rgba(59, 130, 246, 0.2); color: #60a5fa; border-color: rgba(59, 130, 246, 0.5); }
+        .chart-wrapper { flex-grow: 1; width: 100%; background: #1e293b; border-radius: 20px; border: 1px solid #334155; padding: 24px; position: relative; box-shadow: inset 0 2px 10px rgba(255,255,255,0.02); min-height: 0; }
+
+        /* --- PDF PRINT STYLING --- */
+        @media print {
+            @page {
+                size: 1280px 720px; /* Force page size to exactly match the slide */
+                margin: 0; /* Remove browser margins */
+            }
+            body {
+                background-color: #020617;
+                display: block; /* Remove grid to prevent layout distortion */
+                gap: 0;
+                margin: 0;
+                padding: 0;
+                -webkit-print-color-adjust: exact; /* Force render background colors */
+                print-color-adjust: exact;
+            }
+            .slide-container {
+                border: none;
+                border-radius: 0; /* Sharp corners for printing */
+                box-shadow: none;
+                height: 720px;
+                width: 1280px;
+                margin: 0;
+                page-break-after: always; /* Force page breaks */
+                break-after: page;
+                page-break-inside: avoid;
+                break-inside: avoid;
+            }
+            /* Remove the page break on the last slide to prevent a blank final page */
+            .slide-container:last-child {
+                page-break-after: auto;
+                break-after: auto;
+            }
+        }
+
+    </style>
+</head>
+<body>
+
+<!-- Slide 1: Cover Page -->
+<div class="slide-container" id="slide1">
+    <div class="title-layout">
+        <div class="date-badge"><i class="fa-solid fa-satellite-dish"></i> Live NWS IDSS Feed</div>
+        <h1>Weather <span class="blue">Briefing</span></h1>
+        <p class="subtitle">Washington University in St. Louis</p>
+        <p style="margin-top: 40px; color: #64748b; font-size: 16px; font-weight: 700;">WashU Emergency Management</p>
+        <p id="generated-time" style="margin-top: 10px; color: #3b82f6; font-size: 14px; font-weight: 700; font-style: italic;">Syncing Live Data...</p>
+    </div>
+</div>
+
+<!-- Slide 2: Active Hazards & Alerts -->
+<div class="slide-container" id="slide2">
+    <h2 class="slide-title">1. Active Hazards & Alerts</h2>
+    <div class="content-area" id="alerts-container">
+        <!-- Injected via JS -->
+        <div style="display: flex; align-items: center; justify-content: center; height: 100%; width: 100%; flex-direction: column; text-align: center; gap: 20px;">
+            <i class="fa-solid fa-spinner fa-spin" style="color: #3b82f6; font-size: 80px;"></i>
+            <h3 style="color: #3b82f6; font-size: 36px; margin: 0; text-transform: uppercase;">Polling NWS Servers...</h3>
+        </div>
+    </div>
+</div>
+
+<!-- Slide 3: 12-Hour Forecast (Today / Tonight) -->
+<div class="slide-container" id="slide3">
+    <h2 class="slide-title">2. 12-Hour Outlook</h2>
+    <div class="content-area">
+        <div class="forecast-grid">
+            <!-- Period 1 -->
+            <div class="forecast-card">
+                <div class="period-title" id="p1-title">--</div>
+                <div class="forecast-metrics">
+                    <div class="metric"><div class="metric-value" id="p1-temp">--</div><div class="metric-label">Temp</div></div>
+                    <div class="metric"><div class="metric-value blue" id="p1-pop">--</div><div class="metric-label">Precip Risk</div></div>
+                    <div class="metric"><div class="metric-value" id="p1-wind">--</div><div class="metric-label">Peak Wind</div></div>
+                </div>
+                <div class="forecast-short" id="p1-short">--</div>
+                <div class="forecast-desc" id="p1-desc">--</div>
+            </div>
+            <!-- Period 2 -->
+            <div class="forecast-card">
+                <div class="period-title" style="color: #94a3b8;" id="p2-title">--</div>
+                <div class="forecast-metrics">
+                    <div class="metric"><div class="metric-value" id="p2-temp">--</div><div class="metric-label">Temp</div></div>
+                    <div class="metric"><div class="metric-value blue" id="p2-pop">--</div><div class="metric-label">Precip Risk</div></div>
+                    <div class="metric"><div class="metric-value" id="p2-wind">--</div><div class="metric-label">Peak Wind</div></div>
+                </div>
+                <div class="forecast-short" id="p2-short">--</div>
+                <div class="forecast-desc" id="p2-desc">--</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Slide 3.5: Hour-by-Hour Breakdown -->
+<div class="slide-container" id="slide-hour-by-hour">
+    <h2 class="slide-title">3. Hour-by-Hour Details</h2>
+    <div class="content-area">
+        <table class="hour-table">
+            <thead>
+                <tr>
+                    <th style="width: 20%;">Time (CST)</th>
+                    <th style="width: 16%;">Temp</th>
+                    <th style="width: 16%;">Precip</th>
+                    <th style="width: 16%;">Humidity</th>
+                    <th style="width: 16%;">Wind</th>
+                    <th style="width: 16%;">Gust</th>
+                </tr>
+            </thead>
+            <tbody id="hourly-table-body">
+                <!-- Injected via JS -->
+            </tbody>
+        </table>
+        
+        <div class="outlier-legend">
+            <span>Historical Outlier Legend (March):</span>
+            <span style="display:flex; align-items:center;"><span style="display:inline-block; width:10px; height:10px; background:#8b5cf6; border-radius:3px; margin-right:6px;"></span> Humidity &gt;80%</span>
+            <span style="display:flex; align-items:center;"><span style="display:inline-block; width:10px; height:10px; background:#0ea5e9; border-radius:3px; margin-right:6px;"></span> Precip &gt;50%</span>
+            <span style="display:flex; align-items:center;"><span style="display:inline-block; width:10px; height:10px; background:#f59e0b; border-radius:3px; margin-right:6px;"></span> Notable Wind/Gust</span>
+            <span style="display:flex; align-items:center;"><span style="display:inline-block; width:10px; height:10px; background:#ef4444; border-radius:3px; margin-right:6px;"></span> Extreme Outlier</span>
+        </div>
+    </div>
+</div>
+
+<!-- Slide 4: 24-Hour Forecast -->
+<div class="slide-container" id="slide4">
+    <h2 class="slide-title">4. 24-Hour Outlook</h2>
+    <div class="content-area">
+        <div class="forecast-grid">
+            <!-- Period 3 -->
+            <div class="forecast-card">
+                <div class="period-title" id="p3-title">--</div>
+                <div class="forecast-metrics">
+                    <div class="metric"><div class="metric-value" id="p3-temp">--</div><div class="metric-label">Temp</div></div>
+                    <div class="metric"><div class="metric-value blue" id="p3-pop">--</div><div class="metric-label">Precip Risk</div></div>
+                    <div class="metric"><div class="metric-value" id="p3-wind">--</div><div class="metric-label">Peak Wind</div></div>
+                </div>
+                <div class="forecast-short" id="p3-short">--</div>
+                <div class="forecast-desc" id="p3-desc">--</div>
+            </div>
+            <!-- Period 4 -->
+            <div class="forecast-card">
+                <div class="period-title" style="color: #94a3b8;" id="p4-title">--</div>
+                <div class="forecast-metrics">
+                    <div class="metric"><div class="metric-value" id="p4-temp">--</div><div class="metric-label">Temp</div></div>
+                    <div class="metric"><div class="metric-value blue" id="p4-pop">--</div><div class="metric-label">Precip Risk</div></div>
+                    <div class="metric"><div class="metric-value" id="p4-wind">--</div><div class="metric-label">Peak Wind</div></div>
+                </div>
+                <div class="forecast-short" id="p4-short">--</div>
+                <div class="forecast-desc" id="p4-desc">--</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Slide 5: 48-Hour Forecast -->
+<div class="slide-container" id="slide5">
+    <h2 class="slide-title">5. 48-Hour Outlook</h2>
+    <div class="content-area">
+        <div class="forecast-grid">
+            <!-- Period 5 -->
+            <div class="forecast-card">
+                <div class="period-title" id="p5-title">--</div>
+                <div class="forecast-metrics">
+                    <div class="metric"><div class="metric-value" id="p5-temp">--</div><div class="metric-label">Temp</div></div>
+                    <div class="metric"><div class="metric-value blue" id="p5-pop">--</div><div class="metric-label">Precip Risk</div></div>
+                    <div class="metric"><div class="metric-value" id="p5-wind">--</div><div class="metric-label">Peak Wind</div></div>
+                </div>
+                <div class="forecast-short" id="p5-short">--</div>
+                <div class="forecast-desc" id="p5-desc">--</div>
+            </div>
+            <!-- Period 6 -->
+            <div class="forecast-card">
+                <div class="period-title" style="color: #94a3b8;" id="p6-title">--</div>
+                <div class="forecast-metrics">
+                    <div class="metric"><div class="metric-value" id="p6-temp">--</div><div class="metric-label">Temp</div></div>
+                    <div class="metric"><div class="metric-value blue" id="p6-pop">--</div><div class="metric-label">Precip Risk</div></div>
+                    <div class="metric"><div class="metric-value" id="p6-wind">--</div><div class="metric-label">Peak Wind</div></div>
+                </div>
+                <div class="forecast-short" id="p6-short">--</div>
+                <div class="forecast-desc" id="p6-desc">--</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Slide 6: 12-Hour Combined Temperature Trends -->
+<div class="slide-container" id="slide6">
+    <h2 class="slide-title">6. 12-Hour Temperature Trends</h2>
+    <div class="content-area">
+        <div class="chart-wrapper">
+            <canvas id="chart-12h"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Slide 7: 24-Hour Combined Temperature Trends -->
+<div class="slide-container" id="slide7">
+    <h2 class="slide-title">7. 24-Hour Temperature Trends</h2>
+    <div class="content-area">
+        <div class="chart-wrapper">
+            <canvas id="chart-24h"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Slide 8: 3-Day Combined Temperature Trends -->
+<div class="slide-container" id="slide8">
+    <h2 class="slide-title">8. 3-Day Temperature Trends</h2>
+    <div class="content-area">
+        <div class="chart-wrapper">
+            <canvas id="chart-72h"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Slide 9: 5-Day Combined Temperature Trends -->
+<div class="slide-container" id="slide9">
+    <h2 class="slide-title">9. 5-Day Temperature Trends</h2>
+    <div class="content-area">
+        <div class="chart-wrapper">
+            <canvas id="chart-120h"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Slide 10: 12-Hour Precipitation Trends -->
+<div class="slide-container" id="slide10">
+    <h2 class="slide-title">10. 12-Hour Precipitation Trends</h2>
+    <div class="content-area">
+        <div class="chart-wrapper">
+            <canvas id="chart-p-12h"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Slide 11: 24-Hour Precipitation Trends -->
+<div class="slide-container" id="slide11">
+    <h2 class="slide-title">11. 24-Hour Precipitation Trends</h2>
+    <div class="content-area">
+        <div class="chart-wrapper">
+            <canvas id="chart-p-24h"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Slide 12: 3-Day Precipitation Trends -->
+<div class="slide-container" id="slide12">
+    <h2 class="slide-title">12. 3-Day Precipitation Trends</h2>
+    <div class="content-area">
+        <div class="chart-wrapper">
+            <canvas id="chart-p-72h"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Slide 13: 5-Day Precipitation Trends -->
+<div class="slide-container" id="slide13">
+    <h2 class="slide-title">13. 5-Day Precipitation Trends</h2>
+    <div class="content-area">
+        <div class="chart-wrapper">
+            <canvas id="chart-p-120h"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Slide 14: Executive Summary -->
+<div class="slide-container" id="slide14">
+    <h2 class="slide-title">14. Executive Summary</h2>
+    <div class="content-area">
+        <div class="bullet-list">
+            <ul>
+                <li>
+                    <i id="exec-alert-icon" class="fa-solid fa-circle-check" style="color: #22c55e;"></i>
+                    <strong id="exec-alert-title">Active Hazard</strong>
+                    <span id="exec-alert-text">There are currently no active NWS warnings, watches, or advisories for the region. Routine operational monitoring continues.</span>
+                </li>
+                <li>
+                    <i class="fa-solid fa-umbrella"></i>
+                    <strong>Precipitation Risk</strong>
+                    <span id="exec-precip-text">Evaluating precipitation likelihood across the 48-hour operational window...</span>
+                </li>
+                <li>
+                    <i class="fa-solid fa-temperature-arrow-up"></i>
+                    <strong>Temperature & Wind</strong>
+                    <span id="exec-temp-text">Evaluating maximum forecasted temperature and wind hazards...</span>
+                </li>
+                <li>
+                    <i class="fa-solid fa-clipboard-check"></i>
+                    <strong>Next Briefing</strong>
+                    <span>Live dashboards remain active. The next comprehensive operational brief will be synthesized using NWS IDSS data as needed based on tactical conditions.</span>
+                </li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- Configuration ---
+    const LAT = 38.6482;
+    const LON = -90.3056;
+    const HEADERS = { "User-Agent": "WashUEmergencyOps/1.0 (nickolas@wustl.edu)" };
+
+    // Register ChartDataLabels plugin globally so it's available for all our charts
+    Chart.register(ChartDataLabels);
+
+    // --- Chart State ---
+    let globalHourlyPeriods = [];
+    let chartInstances = {};
+
+    // --- Core API Retrieval ---
+    async function fetchWeatherOpsData() {
+        try {
+            // Update Timestamp
+            document.getElementById('generated-time').innerText = `Generated: ${new Date().toLocaleString()}`;
+
+            // 1. Get Point Metadata
+            const pointRes = await fetch(`https://api.weather.gov/points/${LAT},${LON}`, {headers: HEADERS});
+            const pointData = await pointRes.json();
+            const forecastUrl = pointData.properties.forecast;
+            const hourlyUrl = pointData.properties.forecastHourly;
+
+            // 2. Execute Data Calls in Parallel
+            const [forecastRes, hourlyRes, alertsRes] = await Promise.all([
+                fetch(forecastUrl, {headers: HEADERS}),
+                fetch(hourlyUrl, {headers: HEADERS}),
+                fetch(`https://api.weather.gov/alerts/active?point=${LAT},${LON}`, {headers: HEADERS})
+            ]);
+
+            const forecastData = await forecastRes.json();
+            const hourlyData = await hourlyRes.json();
+            const alertsData = await alertsRes.json();
+
+            globalHourlyPeriods = hourlyData.properties.periods;
+
+            // 3. Populate Dashboard
+            populateAlerts(alertsData.features || []);
+            populateForecast(forecastData.properties.periods);
+            populateHourly(hourlyData.properties.periods);
+            populateExecutiveSummary(forecastData.properties.periods, alertsData.features || []);
+            initCharts();
+
+        } catch (error) {
+            console.error("Failed to fetch NWS Data:", error);
+            document.getElementById('generated-time').innerText = "ERROR: Failed to establish live connection to NWS API.";
+            document.getElementById('generated-time').style.color = "#ef4444";
+        }
+    }
+
+    // --- Helper Functions ---
+    function extractMaxWind(windStr) {
+        const nums = windStr.match(/\d+/g);
+        return nums ? Math.max(...nums.map(Number)) : 0;
+    }
+
+    function getPrecip(period) {
+        return period.probabilityOfPrecipitation && period.probabilityOfPrecipitation.value !== null 
+            ? period.probabilityOfPrecipitation.value 
+            : 0;
+    }
+
+    // --- Populators ---
+    function populateAlerts(alerts) {
+        const container = document.getElementById('alerts-container');
+        if (alerts.length === 0) {
+            container.innerHTML = `
+                <div style="display: flex; align-items: center; justify-content: center; height: 100%; width: 100%; flex-direction: column; text-align: center; gap: 20px;">
+                    <i class="fa-solid fa-circle-check" style="color: #22c55e; font-size: 80px;"></i>
+                    <h3 style="color: #22c55e; font-size: 36px; margin: 0; text-transform: uppercase;">All-Clear</h3>
+                    <p style="color: #94a3b8; font-size: 24px;">There are no active NWS hazards or alerts currently issued for the region.</p>
+                </div>`;
+            return;
+        }
+
+        let tableHtml = `
+            <table class="alerts-table" style="width: 100%; border-collapse: separate; border-spacing: 0 15px;">
+                <thead>
+                    <tr>
+                        <th style="color: #64748b; font-size: 16px; text-transform: uppercase; letter-spacing: 0.1em; text-align: left; padding: 0 24px 10px 24px; border-bottom: 2px solid #334155; width: 35%;">Event / Severity</th>
+                        <th style="color: #64748b; font-size: 16px; text-transform: uppercase; letter-spacing: 0.1em; text-align: left; padding: 0 24px 10px 24px; border-bottom: 2px solid #334155; width: 65%;">Headline Details</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+        
+        // Take top 3 alerts to prevent overflow
+        alerts.slice(0, 3).forEach(alert => {
+            const props = alert.properties;
+            const isSevere = props.severity === 'Severe' || props.severity === 'Extreme';
+            const color = isSevere ? '#ef4444' : '#f59e0b';
+            const icon = isSevere ? 'fa-triangle-exclamation' : 'fa-cloud-bolt';
+            
+            tableHtml += `
+                <tr>
+                    <td style="background: #1e293b; padding: 24px; border-radius: 16px 0 0 16px; border-left: 4px solid ${color};">
+                        <div style="color: ${color}; font-weight: 900; font-size: 24px; text-transform: uppercase;"><i class="fa-solid ${icon}"></i> ${props.event}</div>
+                        <div style="color: #94a3b8; font-size: 14px; margin-top: 8px; font-weight: 700; text-transform: uppercase;">Severity: ${props.severity}</div>
+                    </td>
+                    <td style="background: #1e293b; padding: 24px; border-radius: 0 16px 16px 0;">
+                        <div style="color: #cbd5e1; font-size: 18px; line-height: 1.5; font-weight: 500;">${props.headline || props.description.substring(0, 150) + '...'}</div>
+                    </td>
+                </tr>`;
+        });
+        tableHtml += `</tbody></table>`;
+        container.innerHTML = tableHtml;
+    }
+
+    function populateForecast(periods) {
+        for (let i = 0; i < 6; i++) {
+            if (!periods[i]) break;
+            const p = periods[i];
+            const pNum = i + 1;
+            
+            document.getElementById(`p${pNum}-title`).innerText = p.name;
+            
+            const tempEl = document.getElementById(`p${pNum}-temp`);
+            tempEl.innerText = `${p.temperature}°F`;
+            if (p.temperature >= 80) tempEl.className = "metric-value red";
+            else if (p.temperature <= 40) tempEl.className = "metric-value blue";
+            else tempEl.className = "metric-value";
+
+            const popEl = document.getElementById(`p${pNum}-pop`);
+            const pop = getPrecip(p);
+            popEl.innerText = `${pop}%`;
+            if (pop >= 50) popEl.className = "metric-value blue";
+            else popEl.className = "metric-value";
+
+            document.getElementById(`p${pNum}-wind`).innerHTML = `${extractMaxWind(p.windSpeed)} <span style="font-size: 14px; color:#64748b;">mph</span>`;
+            document.getElementById(`p${pNum}-short`).innerText = p.shortForecast;
+            document.getElementById(`p${pNum}-desc`).innerText = p.detailedForecast;
+        }
+    }
+
+    function populateHourly(hourlyPeriods) {
+        const tbody = document.getElementById('hourly-table-body');
+        let rows = '';
+
+        // Slice next 6 hours
+        hourlyPeriods.slice(0, 6).forEach(p => {
+            const date = new Date(p.startTime);
+            const timeStr = date.toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit', timeZoneName: 'short'}).replace(/C[DS]T/, 'CST');
+            
+            const temp = p.temperature;
+            const precip = getPrecip(p);
+            const rh = p.relativeHumidity ? p.relativeHumidity.value : 0;
+            const wind = extractMaxWind(p.windSpeed);
+            const gust = extractMaxWind(p.windGust || p.windSpeed);
+
+            // Conditional formatting based on March Outliers
+            const tempBadge = temp > 75 ? 'badge-warm' : (temp < 32 ? 'badge-cool' : 'badge-normal');
+            const precipBadge = precip >= 80 ? 'badge-precip-ext' : (precip >= 50 ? 'badge-precip-high' : 'badge-normal');
+            const rhBadge = rh >= 80 ? 'badge-rh-high' : 'badge-normal';
+            const windBadge = wind >= 30 ? 'badge-wind-ext' : (wind >= 15 ? 'badge-wind-high' : 'badge-normal');
+            const gustBadge = gust >= 35 ? 'badge-wind-ext' : (gust >= 20 ? 'badge-wind-high' : 'badge-normal');
+
+            rows += `
+                <tr>
+                    <td>${timeStr}</td>
+                    <td><span class="badge ${tempBadge}">${temp}°F</span></td>
+                    <td><span class="badge ${precipBadge}">${precip}%</span></td>
+                    <td><span class="badge ${rhBadge}">${rh}%</span></td>
+                    <td><span class="badge ${windBadge}">${wind} mph</span></td>
+                    <td><span class="badge ${gustBadge}">${gust} mph</span></td>
+                </tr>
+            `;
+        });
+        tbody.innerHTML = rows;
+    }
+
+    function populateExecutiveSummary(periods, alerts) {
+        // 1. Alerts
+        if (alerts.length > 0) {
+            document.getElementById('exec-alert-icon').className = "fa-solid fa-triangle-exclamation";
+            document.getElementById('exec-alert-icon').style.color = "#ef4444";
+            document.getElementById('exec-alert-title').innerText = "Active Hazard";
+            document.getElementById('exec-alert-title').style.color = "#ef4444";
+            document.getElementById('exec-alert-text').innerText = `There are ${alerts.length} active NWS alert(s) currently issued for the region. Immediate attention to safety protocols is recommended.`;
+        }
+
+        // 2. Precip & Temp/Wind logic over the 48 hour (6 period) window
+        const next48 = periods.slice(0, 6);
+        let maxTempPeriod = next48[0];
+        let maxWindPeriod = next48[0];
+        let maxPrecipPeriod = next48[0];
+
+        next48.forEach(p => {
+            if (p.temperature > maxTempPeriod.temperature) maxTempPeriod = p;
+            if (extractMaxWind(p.windSpeed) > extractMaxWind(maxWindPeriod.windSpeed)) maxWindPeriod = p;
+            if (getPrecip(p) > getPrecip(maxPrecipPeriod)) maxPrecipPeriod = p;
+        });
+
+        // Precip Update
+        const maxPop = getPrecip(maxPrecipPeriod);
+        if (maxPop >= 50) {
+            document.getElementById('exec-precip-text').innerText = `Elevated precipitation risk detected. A peak probability of ${maxPop}% is forecasted during the '${maxPrecipPeriod.name}' operational period.`;
+        } else {
+            document.getElementById('exec-precip-text').innerText = `Low precipitation risk over the next 48 hours. Peak probability is currently forecasted at ${maxPop}%.`;
+        }
+
+        // Temp & Wind Update
+        let tempText = `Temperatures will peak at ${maxTempPeriod.temperature}°F on ${maxTempPeriod.name}. `;
+        const maxWind = extractMaxWind(maxWindPeriod.windSpeed);
+        if (maxWind >= 15) {
+            tempText += `Notable wind hazards detected, with sustained speeds reaching ${maxWindPeriod.windSpeed} during the '${maxWindPeriod.name}' period.`;
+        } else {
+            tempText += `Wind speeds are expected to remain manageable (under 15 mph).`;
+        }
+        document.getElementById('exec-temp-text').innerText = tempText;
+    }
+
+    // --- Chart Logic ---
+    function initCharts() {
+        if (Object.keys(chartInstances).length === 0) {
+            // Temperature Trends
+            createCombinedChart(12, 'chart-12h');
+            createCombinedChart(24, 'chart-24h');
+            createCombinedChart(72, 'chart-72h');
+            createCombinedChart(120, 'chart-120h');
+            
+            // Precipitation Trends
+            createPrecipChart(12, 'chart-p-12h');
+            createPrecipChart(24, 'chart-p-24h');
+            createPrecipChart(72, 'chart-p-72h');
+            createPrecipChart(120, 'chart-p-120h');
+        } else {
+            updateCombinedChart('chart-12h', 12);
+            updateCombinedChart('chart-24h', 24);
+            updateCombinedChart('chart-72h', 72);
+            updateCombinedChart('chart-120h', 120);
+            
+            updatePrecipChart('chart-p-12h', 12);
+            updatePrecipChart('chart-p-24h', 24);
+            updatePrecipChart('chart-p-72h', 72);
+            updatePrecipChart('chart-p-120h', 120);
+        }
+    }
+
+    // PDF Export format helper - ensures short strings like "Mon 2PM" that don't collide
+    function getExportSafeTimeLabel(startTime, hours) {
+        const d = new Date(startTime);
+        const timeStr = d.toLocaleTimeString('en-US', {hour: 'numeric', hour12: true}).replace(' ', ''); // e.g., "2PM"
+        if (hours <= 24) return timeStr;
+        const dayStr = d.toLocaleDateString('en-US', {weekday: 'short'}); // e.g., "Mon"
+        return `${dayStr} ${timeStr}`;
+    }
+
+    // 1. Temperature Chart Configuration
+    function getCombinedChartData(hours) {
+        const dataSlice = globalHourlyPeriods.slice(0, hours);
+        const labels = dataSlice.map(p => getExportSafeTimeLabel(p.startTime, hours));
+        const temps = dataSlice.map(p => p.temperature);
+        
+        const avgValue = temps.reduce((a, b) => a + b, 0) / temps.length;
+        const maxValue = Math.max(...temps);
+        const minValue = Math.min(...temps);
+
+        const avgLine = Array(temps.length).fill(avgValue);
+        const maxLine = Array(temps.length).fill(maxValue);
+        const minLine = Array(temps.length).fill(minValue);
+
+        return {
+            labels,
+            datasets: [
+                {
+                    label: 'Hourly Temp (°F)',
+                    data: temps,
+                    borderColor: '#94a3b8',
+                    backgroundColor: 'rgba(148, 163, 184, 0.1)',
+                    borderWidth: 2,
+                    tension: 0.4,
+                    fill: true,
+                    pointRadius: 0,
+                    datalabels: {
+                        display: function(context) {
+                            if (hours > 24) return context.dataIndex % 6 === 0; // Prevent collision on 3-day/5-day
+                            return true;
+                        },
+                        align: 'top',
+                        anchor: 'center',
+                        offset: 8,
+                        formatter: value => Math.round(value) + '°'
+                    }
+                },
+                {
+                    label: `Average (${avgValue.toFixed(1)}°F)`,
+                    data: avgLine,
+                    borderColor: '#10b981',
+                    borderWidth: 2,
+                    borderDash: [5, 5],
+                    pointRadius: 0,
+                    fill: false,
+                    datalabels: { display: false } // Hide labels for static reference line
+                },
+                {
+                    label: `Maximum (${maxValue}°F)`,
+                    data: maxLine,
+                    borderColor: '#ef4444',
+                    borderWidth: 2,
+                    borderDash: [5, 5],
+                    pointRadius: 0,
+                    fill: false,
+                    datalabels: { display: false } // Hide labels for static reference line
+                },
+                {
+                    label: `Minimum (${minValue}°F)`,
+                    data: minLine,
+                    borderColor: '#3b82f6',
+                    borderWidth: 2,
+                    borderDash: [5, 5],
+                    pointRadius: 0,
+                    fill: false,
+                    datalabels: { display: false } // Hide labels for static reference line
+                }
+            ]
+        };
+    }
+
+    function createCombinedChart(hours, elementId) {
+        const ctx = document.getElementById(elementId).getContext('2d');
+        const chartData = getCombinedChartData(hours);
+
+        chartInstances[elementId] = new Chart(ctx, {
+            type: 'line',
+            data: chartData,
+            options: {
+                animation: false, // CRITICAL FOR PRINT-TO-PDF SCRIPTS
+                responsive: true,
+                maintainAspectRatio: false,
+                layout: { padding: { top: 25, right: 20 } }, // Space for data labels to prevent clipping
+                plugins: {
+                    legend: { labels: { color: '#f8fafc', font: { family: 'Century Gothic', weight: 'bold', size: 14 } } },
+                    tooltip: { mode: 'index', intersect: false },
+                    datalabels: {
+                        color: '#f8fafc',
+                        font: { family: 'Century Gothic', weight: 'bold', size: 12 }
+                    }
+                },
+                scales: {
+                    x: { 
+                        grid: { color: '#334155' }, 
+                        ticks: { 
+                            color: '#94a3b8', 
+                            font: { family: 'Century Gothic', size: 12 },
+                            maxRotation: 45, 
+                            minRotation: 45,
+                            autoSkip: true,
+                            maxTicksLimit: 24 // Keep PPT axes clean
+                        } 
+                    },
+                    y: { 
+                        grid: { color: '#334155' }, 
+                        ticks: { color: '#94a3b8', font: { family: 'Century Gothic', size: 12 } } 
+                    }
+                }
+            }
+        });
+    }
+
+    function updateCombinedChart(elementId, hours) {
+        if (chartInstances[elementId] && globalHourlyPeriods.length > 0) {
+            chartInstances[elementId].data = getCombinedChartData(hours);
+            chartInstances[elementId].update();
+        }
+    }
+
+    // 2. Precipitation Chart Configuration
+    function getPrecipChartData(hours) {
+        const dataSlice = globalHourlyPeriods.slice(0, hours);
+        const labels = dataSlice.map(p => getExportSafeTimeLabel(p.startTime, hours));
+
+        // Safe extractions for dynamic hourly API payload combinations
+        const pop = dataSlice.map(p => p.probabilityOfPrecipitation?.value || 0);
+        
+        const qpf = dataSlice.map(p => {
+            if (p.precipitationAmount) return p.precipitationAmount.value || 0;
+            return 0;
+        });
+
+        const thunder = dataSlice.map(p => {
+            if (p.probabilityOfThunder) return p.probabilityOfThunder.value || 0;
+            if (p.shortForecast && p.shortForecast.toLowerCase().includes('thunder')) return 40; // mock baseline if text confirms thunder
+            return 0;
+        });
+
+        return {
+            labels,
+            datasets: [
+                {
+                    label: 'PoP (%)',
+                    data: pop,
+                    backgroundColor: 'rgba(59, 130, 246, 0.4)',
+                    borderColor: '#3b82f6',
+                    borderWidth: 1,
+                    type: 'bar',
+                    yAxisID: 'y', // Uses percentage axis
+                    datalabels: {
+                        display: function(context) {
+                            const val = context.dataset.data[context.dataIndex];
+                            if (val === 0) return false; // Skip 0% to prevent clutter
+                            if (hours > 24) return context.dataIndex % 6 === 0;
+                            return true;
+                        },
+                        align: 'top',
+                        anchor: 'end',
+                        color: '#60a5fa',
+                        formatter: value => Math.round(value) + '%'
+                    }
+                },
+                {
+                    label: 'Thunder Risk (%)',
+                    data: thunder,
+                    borderColor: '#f59e0b',
+                    borderWidth: 2,
+                    borderDash: [5, 5],
+                    type: 'line',
+                    pointRadius: 0,
+                    yAxisID: 'y', // Uses percentage axis
+                    datalabels: { display: false } // Prevent clutter with line labels overlapping bars
+                },
+                {
+                    label: 'Precip Amount (in)',
+                    data: qpf,
+                    backgroundColor: 'rgba(14, 165, 233, 0.6)',
+                    borderColor: '#0ea5e9',
+                    borderWidth: 1,
+                    type: 'bar',
+                    yAxisID: 'y1', // Uses independent amount axis
+                    datalabels: {
+                        display: function(context) {
+                            const val = context.dataset.data[context.dataIndex];
+                            if (val === 0) return false; // Skip 0" to prevent clutter
+                            if (hours > 24) return context.dataIndex % 6 === 0;
+                            return true;
+                        },
+                        align: 'top',
+                        anchor: 'end',
+                        color: '#38bdf8',
+                        formatter: value => value.toFixed(2) + '"'
+                    }
+                }
+            ]
+        };
+    }
+
+    function createPrecipChart(hours, elementId) {
+        const ctx = document.getElementById(elementId).getContext('2d');
+        const chartData = getPrecipChartData(hours);
+
+        chartInstances[elementId] = new Chart(ctx, {
+            type: 'line',
+            data: chartData,
+            options: {
+                animation: false, // CRITICAL FOR PRINT-TO-PDF SCRIPTS
+                responsive: true,
+                maintainAspectRatio: false,
+                layout: { padding: { top: 30, right: 20 } },
+                plugins: {
+                    legend: { labels: { color: '#f8fafc', font: { family: 'Century Gothic', weight: 'bold', size: 14 } } },
+                    tooltip: { mode: 'index', intersect: false },
+                    datalabels: { font: { family: 'Century Gothic', weight: 'bold', size: 11 } }
+                },
+                scales: {
+                    x: { 
+                        grid: { color: '#334155' }, 
+                        ticks: { 
+                            color: '#94a3b8', 
+                            font: { family: 'Century Gothic', size: 12 },
+                            maxRotation: 45, 
+                            minRotation: 45,
+                            autoSkip: true,
+                            maxTicksLimit: 24 
+                        } 
+                    },
+                    y: { // Percentage Axis
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        min: 0,
+                        max: 100,
+                        title: { display: true, text: 'Probability (%)', color: '#94a3b8', font: {family: 'Century Gothic', size: 14} },
+                        grid: { color: '#334155' }, 
+                        ticks: { color: '#94a3b8', font: { family: 'Century Gothic', size: 12 } } 
+                    },
+                    y1: { // Amount Axis
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        min: 0,
+                        suggestedMax: 0.5, // Ensure small bars don't hit the top of the graph
+                        title: { display: true, text: 'Amount (in)', color: '#0ea5e9', font: {family: 'Century Gothic', size: 14} },
+                        grid: { drawOnChartArea: false },
+                        ticks: { color: '#0ea5e9', font: { family: 'Century Gothic', size: 12 } }
+                    }
+                }
+            }
+        });
+    }
+
+    function updatePrecipChart(elementId, hours) {
+        if (chartInstances[elementId] && globalHourlyPeriods.length > 0) {
+            chartInstances[elementId].data = getPrecipChartData(hours);
+            chartInstances[elementId].update();
+        }
+    }
+
+    // Initialize
+    window.onload = () => {
+        fetchWeatherOpsData();
+        // Set auto-refresh timer for 5 minutes (300,000 milliseconds)
+        setInterval(fetchWeatherOpsData, 300000); 
+    };
+
+</script>
+</body>
+</html>
